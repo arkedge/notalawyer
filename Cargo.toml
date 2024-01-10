@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["notalawyer", "notalawyer-clap", "notalawyer-build"]
+exclude = ["example"]
+
+[workspace.dependencies]
+notalawyer = "0.1.0"
