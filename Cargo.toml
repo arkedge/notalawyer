@@ -5,3 +5,10 @@ exclude = ["example"]
 
 [workspace.dependencies]
 notalawyer = "0.1.0"
+
+[workspace.package]
+version = "0.1.0"
+repository = "https://github.com/arkedge/notalawyer"
+license = "MIT"
+edition = "2021"
+readme = "README.md"
