@@ -4,4 +4,4 @@
 
 ## Usage
 
-notlawyer provides integration capabilities with clap. Please see the `example/` directory for more details.
+notalawyer provides integration capabilities with clap. Please see the `example/` directory for more details.
