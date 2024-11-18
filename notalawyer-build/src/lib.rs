@@ -32,6 +32,5 @@ pub fn build_with_template(template: &str) {
     if !is_success {
         panic!("cargo-about failed");
     }
-    println!("cargo:rerun-if-changed=Cargo.lock");
     println!("cargo:rerun-if-changed={}", template);
 }
