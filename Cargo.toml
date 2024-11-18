@@ -4,10 +4,10 @@ members = ["notalawyer", "notalawyer-clap", "notalawyer-build"]
 exclude = ["example"]
 
 [workspace.dependencies]
-notalawyer = "0.1.0"
+notalawyer = "0.2.0"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 repository = "https://github.com/arkedge/notalawyer"
 license = "MIT"
 edition = "2021"
