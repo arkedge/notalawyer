@@ -1109,7 +1109,6 @@ dependencies = [
  "camino",
  "cargo-about",
  "codespan-reporting",
- "handlebars",
  "krates",
  "reqwest",
  "termcolor",

@@ -1,9 +1,5 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
-
-pub fn about_hbs() -> Option<PathBuf> {
-    Some(PathBuf::from(file!()).parent()?.parent()?.join("about.hbs"))
-}
 
 fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::config::Config {
     let mut parent = manifest_path.parent();
@@ -27,11 +23,6 @@ fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::confi
 }
 
 pub fn build() {
-    let about_hbs = about_hbs().expect("failed to traverse to about.hbs");
-    build_with_template(about_hbs.to_str().expect("invalid about.hbs path"));
-}
-
-pub fn build_with_template(template: &str) {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let license_path = Path::new(&out_dir).join("notalawyer");
 
@@ -88,20 +79,39 @@ pub fn build_with_template(template: &str) {
     // Pass stderr stream to enable license validation errors
     use codespan_reporting::term;
     let stream = term::termcolor::StandardStream::stderr(term::termcolor::ColorChoice::Auto);
-    let input = cargo_about::generate::generate(&summary, &resolved, &files, Some(stream))
+    let license_list = cargo_about::generate::generate(&summary, &resolved, &files, Some(stream))
         .expect("failed to generate license list");
 
-    // Render with handlebars
-    let mut reg = handlebars::Handlebars::new();
-    reg.register_template_file("tmpl", template)
-        .expect("failed to register template");
-
-    let output = reg.render("tmpl", &input)
-        .expect("failed to render template");
+    // Render output (handlebars-free implementation)
+    let mut output = String::new();
+    for license in &license_list.licenses {
+        output.push_str(&license.name);
+        output.push_str("\n Used by:\n");
+        for used_by in &license.used_by {
+            output.push_str("  - ");
+            output.push_str(&used_by.krate.name);
+            output.push(' ');
+            output.push_str(&used_by.krate.version.to_string());
+            output.push_str(" (");
+            if let Some(repo) = &used_by.krate.repository {
+                output.push(' ');
+                output.push_str(repo);
+                output.push(' ');
+            } else {
+                output.push_str(" https://crates.io/crates/");
+                output.push_str(&used_by.krate.name);
+                output.push(' ');
+            }
+            output.push_str(")\n");
+        }
+        output.push('\n');
+        output.push_str(&license.text);
+        output.push_str("\n--------------------------------------------------------------------------\n");
+    }
 
     // Write output
     std::fs::write(&license_path, output)
         .expect("failed to write NOTICE file");
 
-    println!("cargo:rerun-if-changed={}", template);
+    println!("cargo:rerun-if-changed=about.toml");
 }
