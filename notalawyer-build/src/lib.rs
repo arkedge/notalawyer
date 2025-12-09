@@ -4,7 +4,6 @@ use std::sync::Arc;
 fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::config::Config {
     let mut parent = manifest_path.parent();
 
-    // Move up directories until we find an about.toml
     while let Some(p) = parent {
         let about_toml = p.join("about.toml");
 
@@ -26,63 +25,64 @@ pub fn build() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let license_path = Path::new(&out_dir).join("notalawyer");
 
-    // Find Cargo.toml in current directory
-    let manifest_path = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR not set");
+    let manifest_path = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let manifest_path = camino::Utf8PathBuf::from(manifest_path).join("Cargo.toml");
 
-    // Load config from about.toml if it exists
     let cfg = load_config(&manifest_path);
 
-    // Get all crates
+    let no_default_features = false;
+    let all_features = false;
+    let features: Vec<String> = vec![];
+    let workspace = false;
+    let target_overrides = &[];
     let krates = cargo_about::get_all_crates(
         &manifest_path,
-        false, // no_default_features
-        false, // all_features
-        vec![], // features
-        false, // workspace
+        no_default_features,
+        all_features,
+        features,
+        workspace,
         krates::LockOptions {
             frozen: false,
             locked: false,
             offline: false,
         },
         &cfg,
-        &[], // target_overrides
+        target_overrides,
     )
     .expect("failed to gather crates");
 
-    // Load license store
-    let store = cargo_about::licenses::store_from_cache()
-        .expect("failed to load license store");
+    let store = cargo_about::licenses::store_from_cache().expect("failed to load license store");
 
     // Create HTTP client for fetching license information from remote sources
-    // (unless running in offline mode would be specified via about.toml or environment)
-    let client = reqwest::blocking::ClientBuilder::new()
-        .build()
-        .ok();
+    let client = reqwest::blocking::ClientBuilder::new().build().ok();
 
-    // Gather license information
     let summary = cargo_about::licenses::Gatherer::with_store(Arc::new(store))
         .with_confidence_threshold(0.8)
         .with_max_depth(cfg.max_depth.map(|md| md as _))
         .gather(&krates, &cfg, client);
 
-    // Resolve licenses
+    let fail_on_missing = false;
     let (files, resolved) = cargo_about::licenses::resolution::resolve(
         &summary,
         &cfg.accepted,
         &cfg.crates,
-        false, // fail_on_missing
+        fail_on_missing,
     );
 
-    // Generate license list
     // Pass stderr stream to enable license validation errors
     use codespan_reporting::term;
     let stream = term::termcolor::StandardStream::stderr(term::termcolor::ColorChoice::Auto);
     let license_list = cargo_about::generate::generate(&summary, &resolved, &files, Some(stream))
         .expect("failed to generate license list");
 
-    // Render output (handlebars-free implementation)
+    let output = render_license_list(&license_list);
+
+    std::fs::write(&license_path, output).expect("failed to write NOTICE file");
+
+    println!("cargo:rerun-if-changed=about.toml");
+}
+
+fn render_license_list(license_list: &cargo_about::generate::LicenseList<'_>) -> String {
     let mut output = String::new();
     for license in &license_list.licenses {
         output.push_str(&license.name);
@@ -106,12 +106,9 @@ pub fn build() {
         }
         output.push('\n');
         output.push_str(&license.text);
-        output.push_str("\n--------------------------------------------------------------------------\n");
+        output.push_str(
+            "\n--------------------------------------------------------------------------\n",
+        );
     }
-
-    // Write output
-    std::fs::write(&license_path, output)
-        .expect("failed to write NOTICE file");
-
-    println!("cargo:rerun-if-changed=about.toml");
+    output
 }
