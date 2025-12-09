@@ -64,10 +64,17 @@ pub fn build_with_template(template: &str) {
     let store = cargo_about::licenses::store_from_cache()
         .expect("failed to load license store");
 
+    // Create HTTP client for fetching license information from remote sources
+    // (unless running in offline mode would be specified via about.toml or environment)
+    let client = reqwest::blocking::ClientBuilder::new()
+        .build()
+        .ok();
+
     // Gather license information
     let summary = cargo_about::licenses::Gatherer::with_store(Arc::new(store))
         .with_confidence_threshold(0.8)
-        .gather(&krates, &cfg, None);
+        .with_max_depth(cfg.max_depth.map(|md| md as _))
+        .gather(&krates, &cfg, client);
 
     // Resolve licenses
     let (files, resolved) = cargo_about::licenses::resolution::resolve(
