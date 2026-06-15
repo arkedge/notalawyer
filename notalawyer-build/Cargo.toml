@@ -12,7 +12,7 @@ description.workspace = true
 [dependencies]
 cargo-about = "0.8.4"
 camino = "1.2"
-krates = "0.20"
+krates = "0.21"
 toml = "0.9"
 codespan-reporting = "0.13"
 termcolor = "1.4"
