@@ -677,6 +677,7 @@ dependencies = [
  "codespan-reporting",
  "krates",
  "rustls",
+ "serde",
  "toml-span",
  "ureq",
 ]

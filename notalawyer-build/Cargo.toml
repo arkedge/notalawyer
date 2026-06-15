@@ -23,6 +23,10 @@ camino = "1.2"
 krates = "0.21"
 toml-span = "0.7"
 codespan-reporting = "0.13"
+# The public `Notice`/`License`/`UsedBy`/`Package` types always derive
+# `Serialize` so users can hand them to their own templating engine. serde is
+# already in the tree via cargo-about, so this adds no new transitive crates.
+serde = { version = "1", features = ["derive"] }
 # These mirror the exact versions/features cargo-about 0.9 uses for its own
 # HTTP client, so the `ureq::Agent` type unifies with what `Gatherer::gather`
 # expects. Both are already transitive dependencies of cargo-about, so enabling
@@ -34,3 +38,8 @@ ureq = { version = "3.3", optional = true, default-features = false, features = 
 rustls = { version = "0.23", optional = true, default-features = false, features = [
     "ring",
 ] }
+
+[dev-dependencies]
+# Used by the serde-rename and golden tests to inspect the JSON shape of the
+# public `Serialize` types.
+serde_json = "1"
