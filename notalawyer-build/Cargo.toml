@@ -10,3 +10,10 @@ description.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cargo-about = "0.8.4"
+camino = "1.2"
+krates = "0.20"
+toml = "0.9"
+codespan-reporting = "0.13"
+termcolor = "1.4"
+reqwest = { version = "0.12", features = ["blocking"] }
