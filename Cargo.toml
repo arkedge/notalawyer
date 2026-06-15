@@ -11,5 +11,8 @@ version = "0.2.0"
 repository = "https://github.com/arkedge/notalawyer"
 license = "MIT"
 edition = "2021"
+# Driven by cargo-about 0.9 (used by notalawyer-build); verified to build on
+# 1.88 and fail on 1.86.
+rust-version = "1.88"
 readme = "README.md"
 description = "Utility library to display license notices"
