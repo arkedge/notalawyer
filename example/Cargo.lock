@@ -676,7 +676,9 @@ dependencies = [
  "cargo-about",
  "codespan-reporting",
  "krates",
+ "rustls",
  "toml-span",
+ "ureq",
 ]
 
 [[package]]
