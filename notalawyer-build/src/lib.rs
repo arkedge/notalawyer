@@ -1,3 +1,36 @@
+//! Build-time generation of dependency license notices.
+//!
+//! This crate is the build-script half of the `notalawyer` family. Called from
+//! a crate's `build.rs`, [`build`] gathers the license texts of all
+//! dependencies (using the [`cargo_about`] library) and writes a single
+//! `NOTICE` file into `OUT_DIR`.
+//!
+//! The other two crates consume that file at compile time and runtime:
+//!
+//! - **`notalawyer-build`** (this crate) writes the `NOTICE` file from
+//!   `build.rs`.
+//! - [`notalawyer`](https://docs.rs/notalawyer) embeds it via
+//!   `include_notice!`.
+//! - [`notalawyer-clap`](https://docs.rs/notalawyer-clap) exposes it behind a
+//!   `--license-notice` CLI flag.
+//!
+//! License acceptance and gathering are configured through an `about.toml`
+//! file, searched for from the consuming crate's manifest directory upward;
+//! see [cargo-about](https://embarkstudios.github.io/cargo-about/) for its
+//! format.
+//!
+//! # Example
+//!
+//! Add `notalawyer-build` as a build dependency and call [`build`] from the
+//! `main` of your `build.rs`:
+//!
+//! ```no_run
+//! // build.rs
+//! println!("cargo:rerun-if-changed=Cargo.toml");
+//!
+//! notalawyer_build::build();
+//! ```
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -21,6 +54,34 @@ fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::confi
     cargo_about::licenses::config::Config::default()
 }
 
+/// Gather dependency licenses and write the `NOTICE` file into `OUT_DIR`.
+///
+/// Intended to be called from a `build.rs`. It:
+///
+/// 1. Locates an `about.toml` config by walking up from the consuming crate's
+///    `CARGO_MANIFEST_DIR` (falling back to defaults if none is found).
+/// 2. Resolves the dependency graph and gathers each crate's license text via
+///    the [`cargo_about`] library.
+/// 3. Renders a combined notice and writes it to `$OUT_DIR/notalawyer`, the
+///    path that [`notalawyer::include_notice!`](https://docs.rs/notalawyer)
+///    later embeds.
+///
+/// It also emits `cargo:rerun-if-changed=about.toml` so the notice is
+/// regenerated when the config changes.
+///
+/// # Panics
+///
+/// Panics if `OUT_DIR` or `CARGO_MANIFEST_DIR` are unset (i.e. when not run as
+/// a build script), or if gathering, resolving, or writing the licenses fails.
+///
+/// # Example
+///
+/// ```no_run
+/// // build.rs
+/// println!("cargo:rerun-if-changed=Cargo.toml");
+///
+/// notalawyer_build::build();
+/// ```
 pub fn build() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let license_path = Path::new(&out_dir).join("notalawyer");
