@@ -54,7 +54,9 @@ pub fn build() {
     let store = cargo_about::licenses::store_from_cache().expect("failed to load license store");
 
     // Create HTTP client for fetching license information from remote sources
-    let client = reqwest::blocking::ClientBuilder::new().build().expect("failed to create HTTP client");
+    let client = reqwest::blocking::ClientBuilder::new()
+        .build()
+        .expect("failed to create HTTP client");
 
     let summary = cargo_about::licenses::Gatherer::with_store(Arc::new(store))
         .with_confidence_threshold(0.8)
@@ -105,7 +107,12 @@ fn render_license_list(license_list: &cargo_about::generate::LicenseList<'_>) ->
             let link = crate_link(&krate.name, krate.repository.as_deref());
             writeln!(output, "  - {} {} ({link})", krate.name, krate.version).unwrap();
         }
-        writeln!(output, "\n{}\n--------------------------------------------------------------------------", license.text).unwrap();
+        writeln!(
+            output,
+            "\n{}\n--------------------------------------------------------------------------",
+            license.text
+        )
+        .unwrap();
     }
     output
 }
