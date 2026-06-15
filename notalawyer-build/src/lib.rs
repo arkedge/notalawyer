@@ -31,10 +31,14 @@
 //! notalawyer_build::build();
 //! ```
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
-fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::config::Config {
+use cargo_about::licenses::config::{Config, KrateConfig};
+use toml_span::Deserialize as _;
+
+fn load_config(manifest_path: &camino::Utf8Path) -> Config {
     let mut parent = manifest_path.parent();
 
     while let Some(p) = parent {
@@ -42,8 +46,13 @@ fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::confi
 
         if about_toml.exists() {
             if let Ok(contents) = std::fs::read_to_string(&about_toml) {
-                if let Ok(cfg) = toml::from_str(&contents) {
-                    return cfg;
+                // cargo-about 0.9 no longer derives serde `Deserialize` for its
+                // config; it is parsed via `toml_span` and the hand-written
+                // `Deserialize` impl instead.
+                if let Ok(mut value) = toml_span::parse(&contents) {
+                    if let Ok(cfg) = Config::deserialize(&mut value) {
+                        return cfg;
+                    }
                 }
             }
         }
@@ -51,7 +60,7 @@ fn load_config(manifest_path: &camino::Utf8Path) -> cargo_about::licenses::confi
         parent = p.parent();
     }
 
-    cargo_about::licenses::config::Config::default()
+    Config::default()
 }
 
 /// Gather dependency licenses and write the `NOTICE` file into `OUT_DIR`.
@@ -114,29 +123,52 @@ pub fn build() {
 
     let store = cargo_about::licenses::store_from_cache().expect("failed to load license store");
 
-    // Create HTTP client for fetching license information from remote sources
-    let client = reqwest::blocking::ClientBuilder::new()
-        .build()
-        .expect("failed to create HTTP client");
+    // cargo-about 0.9 takes an optional `ureq::Agent` for fetching remote
+    // license information (clearlydefined.io, the original git repos for crates
+    // that were packaged without their LICENSE files, ...). The standard
+    // licenses we accept (MIT / Apache-2.0 / Unicode-DFS-2016) are all covered
+    // by the embedded license store loaded above, so we run fully offline by
+    // passing `None`: no network access happens at build time and we don't have
+    // to wire up a TLS provider ourselves.
+    let client = None;
 
     let summary = cargo_about::licenses::Gatherer::with_store(Arc::new(store))
         .with_confidence_threshold(0.8)
         .with_max_depth(cfg.max_depth.map(|md| md as _))
-        .gather(&krates, &cfg, Some(client));
+        .gather(&krates, &cfg, client);
 
+    // `resolve` no longer returns the codespan `Files`; it now takes a mutable
+    // reference to one (which it appends synthesized manifests to) and the
+    // per-crate config as a plain `BTreeMap<String, KrateConfig>`.
+    let krate_cfg: BTreeMap<String, KrateConfig> = cfg
+        .crates
+        .into_iter()
+        .map(|(name, spanned)| (name, spanned.value))
+        .collect();
+
+    let mut files = cargo_about::licenses::resolution::Files::new();
     let fail_on_missing = false;
-    let (files, resolved) = cargo_about::licenses::resolution::resolve(
+    let resolved = cargo_about::licenses::resolution::resolve(
         &summary,
         &cfg.accepted,
-        &cfg.crates,
+        &krate_cfg,
+        &mut files,
         fail_on_missing,
     );
 
-    // Pass stderr stream to enable license validation errors
+    // `generate` now reports diagnostics through a callback instead of taking a
+    // termcolor stream. Forward them to stderr so license validation problems
+    // are still surfaced during the build.
     use codespan_reporting::term;
     let stream = term::termcolor::StandardStream::stderr(term::termcolor::ColorChoice::Auto);
-    let license_list = cargo_about::generate::generate(&summary, &resolved, &files, Some(stream))
-        .expect("failed to generate license list");
+    let diag_cfg = term::Config::default();
+    let license_list = cargo_about::generate::generate(&summary, &resolved, |diags| {
+        let mut stream = stream.lock();
+        for diag in diags {
+            let _ = term::emit_to_io_write(&mut stream, &diag_cfg, &files, diag);
+        }
+    })
+    .expect("failed to generate license list");
 
     let output = render_license_list(&license_list);
 
