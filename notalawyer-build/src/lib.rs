@@ -82,33 +82,51 @@ pub fn build() {
     println!("cargo:rerun-if-changed=about.toml");
 }
 
+/// Renders the parenthesised link shown after each crate in the "Used by" list.
+///
+/// Prefers the crate's `repository`, falling back to its crates.io page. The
+/// surrounding spaces are intentional, kept to match the original `about.hbs`
+/// output byte-for-byte.
+fn crate_link(name: &str, repository: Option<&str>) -> String {
+    match repository {
+        Some(repo) => format!(" {repo} "),
+        None => format!(" https://crates.io/crates/{name} "),
+    }
+}
+
 fn render_license_list(license_list: &cargo_about::generate::LicenseList<'_>) -> String {
+    use std::fmt::Write as _;
+
     let mut output = String::new();
     for license in &license_list.licenses {
-        output.push_str(&license.name);
-        output.push_str("\n Used by:\n");
+        writeln!(output, "{}\n Used by:", license.name).unwrap();
         for used_by in &license.used_by {
-            output.push_str("  - ");
-            output.push_str(&used_by.krate.name);
-            output.push(' ');
-            output.push_str(&used_by.krate.version.to_string());
-            output.push_str(" (");
-            if let Some(repo) = &used_by.krate.repository {
-                output.push(' ');
-                output.push_str(repo);
-                output.push(' ');
-            } else {
-                output.push_str(" https://crates.io/crates/");
-                output.push_str(&used_by.krate.name);
-                output.push(' ');
-            }
-            output.push_str(")\n");
+            let krate = &used_by.krate;
+            let link = crate_link(&krate.name, krate.repository.as_deref());
+            writeln!(output, "  - {} {} ({link})", krate.name, krate.version).unwrap();
         }
-        output.push('\n');
-        output.push_str(&license.text);
-        output.push_str(
-            "\n--------------------------------------------------------------------------\n",
-        );
+        writeln!(output, "\n{}\n--------------------------------------------------------------------------", license.text).unwrap();
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::crate_link;
+
+    #[test]
+    fn crate_link_uses_repository_when_present() {
+        assert_eq!(
+            crate_link("serde", Some("https://github.com/serde-rs/serde")),
+            " https://github.com/serde-rs/serde "
+        );
+    }
+
+    #[test]
+    fn crate_link_falls_back_to_crates_io_page() {
+        assert_eq!(
+            crate_link("serde", None),
+            " https://crates.io/crates/serde "
+        );
+    }
 }
