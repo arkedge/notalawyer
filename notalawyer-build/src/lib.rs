@@ -125,11 +125,35 @@ pub fn build() {
 
     // cargo-about 0.9 takes an optional `ureq::Agent` for fetching remote
     // license information (clearlydefined.io, the original git repos for crates
-    // that were packaged without their LICENSE files, ...). The standard
-    // licenses we accept (MIT / Apache-2.0 / Unicode-DFS-2016) are all covered
-    // by the embedded license store loaded above, so we run fully offline by
-    // passing `None`: no network access happens at build time and we don't have
-    // to wire up a TLS provider ourselves.
+    // that were packaged without their LICENSE files, ...). This is what backs
+    // `[clarify.<crate>.git]` entries in `about.toml`.
+    //
+    // The `fetch-clarify-license` feature (enabled by default) decides whether
+    // we hand cargo-about such an agent. When it is on we build the agent the
+    // same way cargo-about's own CLI does, so the type unifies with what
+    // `Gatherer::gather` expects. When it is off (`--no-default-features`) we
+    // pass `None` and run fully offline -- handy for docs.rs or any sandboxed
+    // build with no network access. Constructing the agent does not perform any
+    // network access by itself; fetches only happen for `clarify.git` entries.
+    #[cfg(feature = "fetch-clarify-license")]
+    let client = {
+        use ureq::tls::{RootCerts, TlsConfig};
+
+        let prov = rustls::crypto::ring::default_provider();
+
+        Some(
+            ureq::Agent::config_builder()
+                .tls_config(
+                    TlsConfig::builder()
+                        .unversioned_rustls_crypto_provider(Arc::new(prov))
+                        .root_certs(RootCerts::PlatformVerifier)
+                        .build(),
+                )
+                .build()
+                .new_agent(),
+        )
+    };
+    #[cfg(not(feature = "fetch-clarify-license"))]
     let client = None;
 
     let summary = cargo_about::licenses::Gatherer::with_store(Arc::new(store))
