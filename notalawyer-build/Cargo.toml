@@ -20,7 +20,7 @@ fetch-clarify-license = ["dep:ureq", "dep:rustls"]
 [dependencies]
 cargo-about = { version = "0.9", default-features = false }
 camino = "1.2"
-krates = "0.21"
+krates = "0.22"
 toml-span = "0.7"
 codespan-reporting = "0.13"
 # The public `Notice`/`License`/`UsedBy`/`Package` types always derive
